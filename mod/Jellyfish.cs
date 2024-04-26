@@ -75,9 +75,21 @@ internal class Jellyfish
             return $"{s.transform?.parent?.name}/{s.name} - {s._outerFogWarpVolume?.transform?.parent?.name}/{s._outerFogWarpVolume?.name}";
         }))}");
 
+        OWAudioSource harmonicaSource = null;
+        OWAudioSource pod3Source = null;
+
+        // prevent NREs in TravelerAudioManager by trimming its signal list first
+        //var tam = Locator.GetTravelerAudioManager();
+        //tam._signals = tam._signals.Where(s => s._outerFogWarpVolume == null).ToList();
+
+        // actually delete all the vanilla signal on nodes inside DB (the signals on the DB exterior/entrance are untouched)
         var dbInteriorSignals = signals.Where(s => s._outerFogWarpVolume != null);
         foreach (var s in dbInteriorSignals)
         {
+            if (s.name == "Signal_Harmonica" && harmonicaSource == null)
+                harmonicaSource = s._owAudioSource;
+            if (s.name == "Signal_EscapePod" && pod3Source == null)
+                pod3Source = s._owAudioSource;
             s.gameObject.DestroyAllComponents<AudioSignal>();
         }
 
@@ -86,7 +98,7 @@ internal class Jellyfish
         signal._name = SignalName.Traveler_Feldspar;
         signal._onlyAudibleToScope = true;
         signal._outerFogWarpVolume = escapePodOFWV;
-        // signal._owAudioSource = ???
+        signal._owAudioSource = harmonicaSource;
     }
 
     [HarmonyPrefix, HarmonyPatch(typeof(JellyfishController), nameof(JellyfishController.OnSectorOccupantsUpdated))]
