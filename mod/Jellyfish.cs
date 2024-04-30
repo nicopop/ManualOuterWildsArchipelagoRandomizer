@@ -54,6 +54,10 @@ internal class Jellyfish
         var hubToSmallNestIFVWs = clusterIFVWs.Where(ifvw => ifvw.name == "InnerWarp_ToSmallNest");
         var hubToEscapePodIFVWs = clusterIFVWs.Where(ifvw => ifvw.name == "InnerWarp_ToEscapePod");
 
+        foreach (var ifvw in GameObject.FindObjectsOfType<InnerFogWarpVolume>())
+            if (ifvw?._linkedOuterWarpVolume?._linkedInnerWarpVolume != ifvw)
+                APRandomizer.OWMLModConsole.WriteLine($"mismatch: {ifvw?.transform?.parent?.name}/{ifvw?.name} -> {ifvw?._linkedOuterWarpVolume?.transform?.parent?.name}/{ifvw?._linkedOuterWarpVolume?.name} -> {ifvw?._linkedOuterWarpVolume?._linkedInnerWarpVolume?.transform?.parent?.name}/{ifvw?._linkedOuterWarpVolume?.name}");
+
         // actually edit some warps
         entranceIFVW._linkedOuterWarpVolume = clusterOFWV;
         foreach (var ifvw in clusterToPioneerIFVWs) ifvw._linkedOuterWarpVolume = vesselOFWV;
