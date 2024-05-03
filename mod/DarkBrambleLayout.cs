@@ -4,11 +4,56 @@ using UnityEngine;
 
 namespace ArchipelagoRandomizer;
 
+
+
 [HarmonyPatch]
 internal class DarkBrambleLayout
 {
+    // same as OuterFogWarpVolume.Name, but without the None value
+    public enum DBRoom
+    {
+        Hub,
+        EscapePod,
+        AnglerNest,
+        Pioneer,
+        ExitOnly,
+        Vessel,
+        Cluster,
+        SmallNest,
+    }
+
+    private record DBLayout
+    {
+        public DBRoom entrance;
+        public (DBRoom, DBRoom, DBRoom, DBRoom) hubWarps;
+        public (DBRoom, DBRoom) clusterWarps;
+        public DBRoom escapePodWarp;
+        public (DBRoom, DBRoom) anglerNestWarps;
+    }
+
+    private static DBLayout GenerateDBLayout()
+    {
+        /*
+         algorithm:
+        - call Pioneer, ExitOnly, Vessel and SmallNest the "dead end rooms"
+        - call Hub, Cluster, EscapePod, AnglerNest "transit rooms"/non-dead end rooms
+        - while there are transit rooms unused:
+            make an "unmapped warps on mapped rooms" list (initially just the entrance)
+            randomly select one of these warps, and map it to a random unused transit room
+        - while there are still unmapped warps: pick any DB room at random to map each to
+         */
+        var db = new DBLayout();
+        db.entrance = DBRoom.Cluster;
+        db.clusterWarps = (DBRoom.Vessel, DBRoom.EscapePod);
+        db.escapePodWarp = DBRoom.AnglerNest;
+        db.anglerNestWarps = (DBRoom.SmallNest, DBRoom.Hub);
+        db.hubWarps = (DBRoom.ExitOnly, DBRoom.Pioneer, DBRoom.EscapePod, DBRoom.SmallNest);
+        return db;
+    }
+
     public static void OnCompleteSceneLoad(OWScene _scene, OWScene _loadScene)
     {
+
         /* 
          * TESTING
          */
