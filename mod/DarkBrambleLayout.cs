@@ -1,4 +1,6 @@
 ﻿using HarmonyLib;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
@@ -22,13 +24,30 @@ internal class DarkBrambleLayout
         SmallNest,
     }
 
+    public enum DBWarp
+    {
+        Hub1,
+        Hub2,
+        Hub3,
+        Hub4,
+        Cluster1,
+        Cluster2,
+        EscapePod1,
+        AnglerNest1,
+        AnglerNest2,
+    }
+
+    public static Dictionary<DBRoom, List<DBWarp>> WarpsInRoom = new() {
+        { DBRoom.Hub, new(){ DBWarp.Hub1, DBWarp.Hub2, DBWarp.Hub3, DBWarp.Hub4 } },
+        { DBRoom.Cluster, new(){ DBWarp.Cluster1, DBWarp.Cluster2 } },
+        { DBRoom.EscapePod, new(){ DBWarp.EscapePod1 } },
+        { DBRoom.AnglerNest, new(){ DBWarp.AnglerNest1, DBWarp.AnglerNest2 } },
+    };
+
     private record DBLayout
     {
         public DBRoom entrance;
-        public (DBRoom, DBRoom, DBRoom, DBRoom) hubWarps;
-        public (DBRoom, DBRoom) clusterWarps;
-        public DBRoom escapePodWarp;
-        public (DBRoom, DBRoom) anglerNestWarps;
+        public Dictionary<DBWarp, DBRoom> warps;
     }
 
     private static DBLayout GenerateDBLayout()
@@ -37,18 +56,89 @@ internal class DarkBrambleLayout
          algorithm:
         - call Pioneer, ExitOnly, Vessel and SmallNest the "dead end rooms"
         - call Hub, Cluster, EscapePod, AnglerNest "transit rooms"/non-dead end rooms
+        - select a transit room for the entrance, initialize unmapped warps with that room's warps
         - while there are transit rooms unused:
-            make an "unmapped warps on mapped rooms" list (initially just the entrance)
-            randomly select one of these warps, and map it to a random unused transit room
-        - while there are still unmapped warps: pick any DB room at random to map each to
+            randomly select one of the unused warps, map it to a random unused transit room, add that room's warps to unmapped warps
+        - while there are unused dead end rooms:
+            randomly select one of the unused warps, map it to a random unused dead end room
+        - while there are still unmapped warps:
+            randomly pick any DB room to map them to
          */
+
+        var unusedTransitRooms = new List<DBRoom> { DBRoom.Hub, DBRoom.Cluster, DBRoom.EscapePod, DBRoom.AnglerNest };
+        var unusedDeadEndRooms = new List<DBRoom> { DBRoom.Pioneer, DBRoom.ExitOnly, DBRoom.Vessel, DBRoom.SmallNest };
+
+        var prng = new System.Random();
+
         var db = new DBLayout();
-        db.entrance = DBRoom.Cluster;
-        db.clusterWarps = (DBRoom.Vessel, DBRoom.EscapePod);
-        db.escapePodWarp = DBRoom.AnglerNest;
-        db.anglerNestWarps = (DBRoom.SmallNest, DBRoom.Hub);
-        db.hubWarps = (DBRoom.ExitOnly, DBRoom.Pioneer, DBRoom.EscapePod, DBRoom.SmallNest);
+        db.warps = new();
+        var unmappedWarps = new List<DBWarp>();
+
+        var entranceIndex = prng.Next(unusedTransitRooms.Count);
+        db.entrance = unusedTransitRooms[entranceIndex];
+        unusedTransitRooms.RemoveAt(entranceIndex);
+
+        unmappedWarps.AddRange(WarpsInRoom[db.entrance]);
+
+        while (unusedTransitRooms.Count > 0)
+        {
+            var warpIndex = prng.Next(unmappedWarps.Count);
+            var warp = unmappedWarps[warpIndex];
+            unmappedWarps.RemoveAt(warpIndex);
+
+            var roomIndex = prng.Next(unusedTransitRooms.Count);
+            var room = unusedTransitRooms[roomIndex];
+            unusedTransitRooms.RemoveAt(roomIndex);
+
+            db.warps[warp] = room;
+
+            unmappedWarps.AddRange(WarpsInRoom[room]);
+        }
+
+        while (unusedDeadEndRooms.Count > 0)
+        {
+            var warpIndex = prng.Next(unmappedWarps.Count);
+            var warp = unmappedWarps[warpIndex];
+            unmappedWarps.RemoveAt(warpIndex);
+
+            var roomIndex = prng.Next(unusedDeadEndRooms.Count);
+            var room = unusedDeadEndRooms[roomIndex];
+            unusedDeadEndRooms.RemoveAt(roomIndex);
+
+            db.warps[warp] = room;
+        }
+
+        var allRooms = Enum.GetValues(typeof(DBRoom));
+        while (unmappedWarps.Count > 0)
+        {
+            var warpIndex = prng.Next(unmappedWarps.Count);
+            var warp = unmappedWarps[warpIndex];
+            unmappedWarps.RemoveAt(warpIndex);
+
+            var roomIndex = prng.Next(allRooms.Length);
+            var room = (DBRoom)allRooms.GetValue(roomIndex);
+
+            db.warps[warp] = room;
+        }
+
         return db;
+    }
+
+    // for testing
+    [HarmonyPrefix, HarmonyPatch(typeof(ToolModeUI), nameof(ToolModeUI.Update))]
+    public static void ToolModeUI_Update_Prefix()
+    {
+        if (OWInput.SharedInputManager.IsNewlyPressed(InputLibrary.left2))
+        {
+        }
+        if (OWInput.SharedInputManager.IsNewlyPressed(InputLibrary.right2))
+        {
+        }
+        if (OWInput.SharedInputManager.IsNewlyPressed(InputLibrary.down2))
+        {
+            var dbl = GenerateDBLayout();
+            APRandomizer.OWMLModConsole.WriteLine($"space -> {dbl.entrance}\n{string.Join("\n", dbl.warps.Select(wr => $"{wr.Key}->{wr.Value}"))}");
+        }
     }
 
     public static void OnCompleteSceneLoad(OWScene _scene, OWScene _loadScene)
